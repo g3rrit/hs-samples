@@ -32,6 +32,15 @@ char_table' a i
                          
 char_table :: [Char] -> [[(Char, Bool)]]
 char_table a = char_table' a (2^(length a) - 1)
+
+c_lookup :: [(Char, Bool)] -> Char -> Bool
+c_lookup ca c = case lookup c ca of
+                  Just n -> n
+                  Nothing -> False
+
+char_fun :: [Char] -> [(Char -> Bool)]
+char_fun ca = map (\c -> (c_lookup c)) ra
+  where ra = char_table ca 
 --------------------------------------
 
 
@@ -40,21 +49,50 @@ res = l_eval test (\a -> case a of
                            'a' -> True
                            'b' -> False)
 
+-- parser
+l_exp :: GenParser Char st (L_Op, [Char])
+l_exp = do
+  r <- lop
+  eol
+  return r
 
-
-
-{--
-exp :: GenParser Char st (L_Op, [Char])
-exp = lop eol
+eol :: GenParser Char st Char
+eol = char '\n'
 
 lop :: GenParser Char st (L_Op, [Char])
-lop = and_op <|> or_op <|> not_op <|> impl_op
+lop = and_op
 
-and_op :: GenParser Char st {L_Op, [Char])
-and_op = string "and" >> tuple
---}
+and_op :: GenParser Char st (L_Op, [Char])
+and_op = do
+  string "and"
+  r <- tuple
+  return r
 
--- create_char_list :: [Char] -> [(Char, Bool)]
+tuple :: GenParser Char st (L_Op, [Char])
+tuple = do
+  char '('
+  l <- var_char
+  char ','
+  r <- var_char
+  char ')'
+  return ((And_Op (Op l) (Op r)), [l] ++ [r])
 
+var_char :: GenParser Char st Char
+var_char = do
+  c <- anyChar
+  return c
 
+parse_l :: String -> Either ParseError (L_Op, [Char])
+parse_l input = parse l_exp "(unknown)" input
+  
+get_either_dummy :: Either ParseError (L_Op, [Char]) -> (L_Op, [Char])
+get_either_dummy (Left a) = (Op 'a', ['a'])
+get_either_dummy (Right a) = a
 
+main = do
+  res <- get_either_dummy $ parse_l "and(a b)"
+  op <- fst res
+  ca <- snd res
+  cfa <- char_fun $ ca
+  a <- concat [(show (l_eval (op fun)))  ++ "\n" | fun <- cfa]
+  putStr a
