@@ -14,6 +14,15 @@ l_eval (Or_Op l r) f = l_eval l f || l_eval r f
 l_eval (Not_Op u) f = not $ l_eval u f
 l_eval (Impl_Op l r) f = not $ l_eval l f && l_eval r f
 
+newtype Log_Table = Log_Table (L_Op, [Char])
+
+instance Show Log_Table where
+  show (Log_Table a) = show $ head ++ "\n" ++ rows
+    where op = fst a
+          ca = snd a
+          head = "|" ++ (concat [c : "     |" | c <- ca]) ++ "res"
+          caf = char_fun ca
+          rows = "|" ++ (concat $ [(concat ([(show $ f c) ++ " |" | c <- ca])) ++ (show $ l_eval op f) ++ "\n" | f <- caf])
 
 -- get character table for evaluation
 char_row :: [Char] -> Int -> [(Char, Bool)]
@@ -50,49 +59,45 @@ res = l_eval test (\a -> case a of
                            'b' -> False)
 
 -- parser
-l_exp :: GenParser Char st (L_Op, [Char])
+l_exp :: GenParser Char st Log_Table
 l_exp = do
+  spaces
   r <- lop
+  spaces
   eol
-  return r
+  return $ (Log_Table r)
 
 eol :: GenParser Char st Char
 eol = char '\n'
 
 lop :: GenParser Char st (L_Op, [Char])
-lop = and_op
+lop = and_op <|> var_op
 
 and_op :: GenParser Char st (L_Op, [Char])
 and_op = do
+  l <- lop
+  spaces
   string "and"
-  r <- tuple
-  return r
+  spaces
+  r <- lop
+  return (And_Op (fst l) (fst r), (snd l) ++ (snd r))
 
-tuple :: GenParser Char st (L_Op, [Char])
-tuple = do
-  char '('
-  l <- var_char
-  char ','
-  r <- var_char
-  char ')'
-  return ((And_Op (Op l) (Op r)), [l] ++ [r])
-
-var_char :: GenParser Char st Char
-var_char = do
+var_op :: GenParser Char st (L_Op, [Char])
+var_op = do
   c <- anyChar
-  return c
+  return (Op c, [c])
 
-parse_l :: String -> Either ParseError (L_Op, [Char])
+
+parse_l :: String -> Either ParseError Log_Table
 parse_l input = parse l_exp "(unknown)" input
+
+
   
-get_either_dummy :: Either ParseError (L_Op, [Char]) -> (L_Op, [Char])
-get_either_dummy (Left a) = (Op 'a', ['a'])
+get_either_dummy :: Either ParseError Log_Table -> Log_Table
+get_either_dummy (Left a) = Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b'])
 get_either_dummy (Right a) = a
 
 main = do
-  res <- get_either_dummy $ parse_l "and(a b)"
-  op <- fst res
-  ca <- snd res
-  cfa <- char_fun $ ca
-  a <- concat [(show (l_eval (op fun)))  ++ "\n" | fun <- cfa]
-  putStr a
+  let res = get_either_dummy $ parse_l "a\n"
+  putStrLn (show (Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b']) ))
+  putStrLn (show res)
