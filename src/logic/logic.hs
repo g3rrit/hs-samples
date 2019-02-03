@@ -17,10 +17,10 @@ l_eval (Impl_Op l r) f = not $ l_eval l f && l_eval r f
 newtype Log_Table = Log_Table (L_Op, [Char])
 
 instance Show Log_Table where
-  show (Log_Table a) = show $ head ++ "\n" ++ rows
+  show (Log_Table a) = h ++ "\n" ++ rows
     where op = fst a
           ca = snd a
-          head = "|" ++ (concat [c : "     |" | c <- ca]) ++ "res"
+          h = "|" ++ (concat [c : "     |" | c <- ca]) ++ "res"
           caf = char_fun ca
           rows = "|" ++ (concat $ [(concat ([(show $ f c) ++ " |" | c <- ca])) ++ (show $ l_eval op f) ++ "\n" | f <- caf])
 
@@ -52,12 +52,6 @@ char_fun ca = map (\c -> (c_lookup c)) ra
   where ra = char_table ca 
 --------------------------------------
 
-
-test = And_Op (Op 'a') (Op 'a')
-res = l_eval test (\a -> case a of
-                           'a' -> True
-                           'b' -> False)
-
 -- parser
 l_exp :: GenParser Char st Log_Table
 l_exp = do
@@ -85,12 +79,11 @@ and_op = do
 var_op :: GenParser Char st (L_Op, [Char])
 var_op = do
   c <- anyChar
-  return (Op c, [c])
+  return ((Op c), [c])
 
 
 parse_l :: String -> Either ParseError Log_Table
 parse_l input = parse l_exp "(unknown)" input
-
 
   
 get_either_dummy :: Either ParseError Log_Table -> Log_Table
@@ -98,6 +91,6 @@ get_either_dummy (Left a) = Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b'])
 get_either_dummy (Right a) = a
 
 main = do
-  let res = get_either_dummy $ parse_l "a\n"
-  putStrLn (show (Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b']) ))
-  putStrLn (show res)
+  let res = get_either_dummy $ parse_l "a and b\n"
+  print (Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b']) )
+  print res
