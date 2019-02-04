@@ -1,4 +1,9 @@
+import System.IO
+import Control.Monad
 import Text.ParserCombinators.Parsec
+import Text.ParserCombinators.Parsec.Expr
+import Text.ParserCombinators.Parsec.Language
+import qualified Text.ParserCombinators.Parsec.Token as Token
 
 data L_Op =
   Op Char
@@ -23,6 +28,9 @@ instance Show Log_Table where
           h = "|" ++ (concat [c : "     |" | c <- ca]) ++ "res"
           caf = char_fun ca
           rows = "|" ++ (concat $ [(concat ([(show $ f c) ++ " |" | c <- ca])) ++ (show $ l_eval op f) ++ "\n" | f <- caf])
+
+get_tup :: Log_Table -> (L_Op, [Char])
+get_tup (Log_Table a) = a
 
 -- get character table for evaluation
 char_row :: [Char] -> Int -> [(Char, Bool)]
@@ -52,45 +60,67 @@ char_fun ca = map (\c -> (c_lookup c)) ra
   where ra = char_table ca 
 --------------------------------------
 
--- parser
-l_exp :: GenParser Char st Log_Table
-l_exp = do
-  spaces
-  r <- lop
-  spaces
-  eol
-  return $ (Log_Table r)
+-- lexer
 
-eol :: GenParser Char st Char
-eol = char '\n'
+language_def =
+  emptyDef { Token.identStart = letter
+           , Token.identLetter = alphaNum
+           , Token.reservedOpNames = [ "and", "or"
+                                     ]
+           }
 
-lop :: GenParser Char st (L_Op, [Char])
-lop = and_op <|> var_op
+lexer = Token.makeTokenParser language_def
 
-and_op :: GenParser Char st (L_Op, [Char])
+identifier  = Token.identifier lexer
+reserved_op = Token.reservedOp lexer
+parens      = Token.parens     lexer
+white_space = Token.whiteSpace lexer
+
+l_exp :: Parser Log_Table
+l_exp = white_space >> lop
+
+lop :: Parser Log_Table
+lop = parens lop
+  <|> lop'
+
+lop' :: Parser Log_Table
+lop' = and_op
+  <|> or_op
+  <|> var_op
+
+and_op :: Parser Log_Table
 and_op = do
-  l <- lop
-  spaces
-  string "and"
-  spaces
-  r <- lop
-  return (And_Op (fst l) (fst r), (snd l) ++ (snd r))
+  reserved_op "and"
+  vl <- lop
+  vr <- lop
+  return (Log_Table (And_Op (fst $ get_tup vl) ((fst $ get_tup vr)), (snd $ get_tup vl) ++ (snd $ get_tup vr)))
 
-var_op :: GenParser Char st (L_Op, [Char])
+or_op :: Parser Log_Table
+or_op  = do
+  reserved_op "or"
+  vl <- lop
+  vr <- lop
+  return (Log_Table (Or_Op (fst $ get_tup vl) ((fst $ get_tup vr)), (snd $ get_tup vl) ++ (snd $ get_tup vr)))
+
+var_op :: Parser Log_Table
 var_op = do
-  c <- anyChar
-  return ((Op c), [c])
+  i <- identifier
+  return (Log_Table ((Op (head i)), [head i]))
 
+parse_l :: String -> Log_Table
+parse_l input =
+  case parse l_exp "(unknown)" input of
+    Left e  -> error $ show e
+    Right r -> r
 
-parse_l :: String -> Either ParseError Log_Table
-parse_l input = parse l_exp "(unknown)" input
-
-  
-get_either_dummy :: Either ParseError Log_Table -> Log_Table
-get_either_dummy (Left a) = Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b'])
-get_either_dummy (Right a) = a
-
+parse_user_input :: IO ()
+parse_user_input = do
+  input <- getLine
+  if input == "q"
+    then return ()
+    else do
+    print $ parse_l input
+    parse_user_input
+    
 main = do
-  let res = get_either_dummy $ parse_l "a and b\n"
-  print (Log_Table (Or_Op (Op 'a') (Op 'b'), ['a', 'b']) )
-  print res
+  parse_user_input
