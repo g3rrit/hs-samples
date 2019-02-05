@@ -1,4 +1,5 @@
 import System.IO
+import Data.List.Unique
 import Control.Monad
 import Text.ParserCombinators.Parsec
 import Text.ParserCombinators.Parsec.Expr
@@ -17,7 +18,7 @@ l_eval (Op c) f = f c
 l_eval (And_Op l r) f = l_eval l f && l_eval r f
 l_eval (Or_Op l r) f = l_eval l f || l_eval r f
 l_eval (Not_Op u) f = not $ l_eval u f
-l_eval (Impl_Op l r) f = not $ l_eval l f && l_eval r f
+l_eval (Impl_Op l r) f = (not $ l_eval l f) || l_eval r f
 
 newtype Log_Table = Log_Table (L_Op, [Char])
 
@@ -27,7 +28,7 @@ instance Show Log_Table where
           ca = snd a
           h = "|" ++ (concat [c : "     |" | c <- ca]) ++ "res"
           caf = char_fun ca
-          rows = "|" ++ (concat $ [(concat ([(show $ f c) ++ " |" | c <- ca])) ++ (show $ l_eval op f) ++ "\n" | f <- caf])
+          rows = (concat $ ["|" ++ (concat ([(show $ head $ show $ f c) ++ "   |" | c <- ca])) ++ (show $ l_eval op f) ++ "\n" | f <- caf])
 
 get_tup :: Log_Table -> (L_Op, [Char])
 get_tup (Log_Table a) = a
@@ -60,6 +61,15 @@ char_fun ca = map (\c -> (c_lookup c)) ra
   where ra = char_table ca 
 --------------------------------------
 
+-- util
+
+rem_dups :: [Char] -> [Char]
+rem_dups = rd_helper []
+  where rd_helper seen [] = seen
+        rd_helper seen (x:xs)
+          | x `elem` seen = rd_helper seen xs
+          | otherwise = rd_helper (seen ++ [x]) xs
+
 -- lexer
 
 language_def =
@@ -77,7 +87,10 @@ parens      = Token.parens     lexer
 white_space = Token.whiteSpace lexer
 
 l_exp :: Parser Log_Table
-l_exp = white_space >> lop
+l_exp = do
+  white_space
+  res <- lop
+  return (Log_Table ((fst $ get_tup res), rem_dups $ snd $ get_tup res))
 
 lop :: Parser Log_Table
 lop = parens lop
@@ -86,6 +99,8 @@ lop = parens lop
 lop' :: Parser Log_Table
 lop' = and_op
   <|> or_op
+  <|> not_op
+  <|> impl_op
   <|> var_op
 
 and_op :: Parser Log_Table
@@ -101,6 +116,19 @@ or_op  = do
   vl <- lop
   vr <- lop
   return (Log_Table (Or_Op (fst $ get_tup vl) ((fst $ get_tup vr)), (snd $ get_tup vl) ++ (snd $ get_tup vr)))
+
+impl_op :: Parser Log_Table
+impl_op  = do
+  reserved_op "impl"
+  vl <- lop
+  vr <- lop
+  return (Log_Table (Impl_Op (fst $ get_tup vl) ((fst $ get_tup vr)), (snd $ get_tup vl) ++ (snd $ get_tup vr)))
+
+not_op :: Parser Log_Table
+not_op = do
+  reserved_op "not"
+  v <- lop
+  return (Log_Table (Not_Op (fst $ get_tup v), snd $ get_tup v))
 
 var_op :: Parser Log_Table
 var_op = do
