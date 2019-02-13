@@ -8,6 +8,7 @@ import Control.Monad.IO.Class
 data Mail = Mail {
   host    :: String,
   port    :: String,
+  usr     :: String,
   from    :: String,
   to      :: String,
   subject :: String,
@@ -19,6 +20,8 @@ main = do
   host <- getLine
   putStr "Port: "
   port <- getLine
+  putStr "User: "
+  usr  <- getLine
   putStr "From: "
   from <- getLine
   putStr "To: "
@@ -27,7 +30,7 @@ main = do
   subject <- getLine
   putStrLn "Data: "
   txt <- get_lines
-  let mail = Mail host port from to subject txt
+  let mail = Mail host port usr from to subject txt
   print mail
   connect host port (send_mail mail)
 
@@ -40,11 +43,13 @@ send_mail m = connect (host m) (port m) (\(s, a) -> do
 --}
 send_mail :: Mail -> (Socket, SockAddr) -> IO ()
 send_mail m (s, a) = do
-  send_str s "HELO user"
+  send_str s ("HELO " ++ (usr m))
   recv_str s
   send_str s ("MAIL FROM:" ++ (from m))
   recv_str s
   send_str s ("RCPT TO:" ++ (to m))
+  recv_str s
+  send_str s "DATA"
   recv_str s
   send_txt s ((("From: " ++ (from m))
               :(("To: " ++ (to m))
@@ -61,6 +66,7 @@ send_mail m (s, a) = do
 recv_str :: Socket -> IO ()
 recv_str s = do
   res <- recv s 1000
+  putStr "<"
   maybe_print res
 
 maybe_print :: Maybe B.ByteString -> IO ()
@@ -84,14 +90,13 @@ get_lines' i = do x <- getLine
 pack_str :: String -> B.ByteString
 pack_str = encodeUtf8 . T.pack
 
-send_str :: MonadIO m => Socket -> String -> m ()
-send_str so s = send so $ pack_str s
+send_str :: Socket -> String -> IO ()
+send_str so s = do
+  putStr (">" ++ s ++ "\r\n")
+  send so $ pack_str (s ++ "\r\n")
 
-send_str_ln :: MonadIO m => Socket -> String -> m ()
-send_str_ln so s = send so $ pack_str (s ++ "\n")
-
-send_txt :: MonadIO m => Socket -> [String] -> m ()
+send_txt :: Socket -> [String] -> IO ()
 send_txt so sa
-  | (length sa) > 1 = do send_str_ln so (head sa)
+  | (length sa) > 1 = do send_str so (head sa)
                          send_txt so (tail sa)
-  | otherwise = send_str_ln so (head sa)
+  | otherwise = send_str so (head sa)
