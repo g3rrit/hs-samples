@@ -1,5 +1,3 @@
--- WIP implementation of a State Monad
-
 data State s a = State (s -> (a, s))
 
 get :: State s s
@@ -22,16 +20,13 @@ instance Functor (State s) where
   fmap f (State act) = State $ \s ->
     let (a, s') = act s
     in (f a, s')
-  (<$) a (State act) = State $ \s ->
-    let (_, s') = act s
-    in (a, s')
 
 instance Applicative (State s) where
   pure a = State $ \s -> (a, s)
   (<*>) (State a0) (State a1) = State $ \s ->
-    let (a0', s0') = a0 s
-        (a1', _) = a1 s
-    in (a0' a1', s0')
+    let (f , s0') = a0 s
+        (a1', s1') = a1 s0'
+    in (f a1', s1')
 
 inc = do
   c <- get
