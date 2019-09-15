@@ -48,3 +48,12 @@ nth v s = do
             nth' i (n - 1) xs
 
 nthP n = nth n primes
+
+
+main :: IO ()
+main = do
+  putStrLn "Enter position: "
+  ns <- getLine
+  let n = read ns :: Integer
+  p <- nthP n
+  putStrLn $ ns ++ "th prime: " ++ (show p)
