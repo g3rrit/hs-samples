@@ -6,7 +6,9 @@ keygen p q c = ((e, n), (d, n))
         phi = (p - 1) *  (q - 1)
         nf = notFactors phi
         e = nf !! (fromInteger $ c `mod` (fromIntegral $ length nf))
-        (_, d, _) = extGCD phi e
+        d = let (_, d', _) = extGCD phi e
+                a v = if v >= 0 then v else a (v + phi)
+             in a d'
 
 extGCD :: Integer -> Integer -> (Integer, Integer, Integer)
 extGCD a 0 = (1, 0, a)
